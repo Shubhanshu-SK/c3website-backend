@@ -302,7 +302,7 @@ const sendRegistrationConfirmationEmail = async (studentData, eventData) => {
 
     // 2. Send registration alert email to admin (ccellwebsite@gmail.com)
     // Admin notification disabled — re-enable by uncommenting the call below
-    /*
+    
     const adminMailOptions = {
       from: '"C³ Registration Portal" <onboarding@resend.dev>',
       to: adminEmail,
@@ -319,7 +319,7 @@ const sendRegistrationConfirmationEmail = async (studentData, eventData) => {
     } else {
       console.log(`[EmailService] Admin email sent successfully: ${adminDataRes ? adminDataRes.id : 'success'}`);
     }
-    */
+    
 
   } catch (error) {
     // If sending fails, we only log it, keeping the registration valid as per requirement.
