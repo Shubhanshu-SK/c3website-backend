@@ -12,6 +12,8 @@ const Project = require('./models/Project');
 
 const app = express();
 
+// I am behind a proxy (Render), trust the forwarded IP headers.
+app.set('trust proxy', 1);
 // ── Security Middleware ──────────────────────────────────────
 app.use(helmet());
 const allowedOrigins = [
