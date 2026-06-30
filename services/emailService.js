@@ -285,6 +285,7 @@ const sendRegistrationConfirmationEmail = async (studentData, eventData) => {
     const resend = getResendClient();
 
     // 1. Send confirmation email to student
+    /*
     console.log(`[EmailService] Attempting to send confirmation email to student: ${studentData.email}`);
     const { data: studentDataRes, error: studentError } = await resend.emails.send({
       from: '"C³ Club" <onboarding@resend.dev>',
@@ -299,7 +300,7 @@ const sendRegistrationConfirmationEmail = async (studentData, eventData) => {
       throw studentError;
     }
     console.log(`[EmailService] Student email sent successfully: ${studentDataRes ? studentDataRes.id : 'success'}`);
-
+*/
     // 2. Send registration alert email to admin (ccellwebsite@gmail.com)
     // Admin notification disabled — re-enable by uncommenting the call below
     
