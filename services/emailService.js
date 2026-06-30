@@ -5,31 +5,22 @@
  * notification emails to the admin.
  */
 
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const { toDisplayFormat } = require('../utils/formatHelper');
 
-// Initialize transporter lazily so environment variables are loaded
-let transporter = null;
+// Initialize Resend client lazily so environment variables are loaded
+let resendClient = null;
 
-const getTransporter = () => {
-  if (transporter) return transporter;
+const getResendClient = () => {
+  if (resendClient) return resendClient;
 
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = parseInt(process.env.SMTP_PORT || '587', 10);
-  const secure = port === 465; // true for 465, false for other ports
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn('[EmailService] RESEND_API_KEY environment variable is not defined.');
+  }
 
-  // Create transporter
-  transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-
-  return transporter;
+  resendClient = new Resend(apiKey);
+  return resendClient;
 };
 
 /**
@@ -291,33 +282,44 @@ const sendRegistrationConfirmationEmail = async (studentData, eventData) => {
   const adminEmail = process.env.ADMIN_EMAIL || 'ccellwebsite@gmail.com';
 
   try {
-    const mailTransporter = getTransporter();
+    const resend = getResendClient();
 
     // 1. Send confirmation email to student
-    const studentMailOptions = {
-      from: `"C³ Club" <${senderEmail}>`,
+    console.log(`[EmailService] Attempting to send confirmation email to student: ${studentData.email}`);
+    const { data: studentDataRes, error: studentError } = await resend.emails.send({
+      from: '"C³ Club" <onboarding@resend.dev>',
       to: studentData.email,
+      reply_to: 'no-reply@ccellwebsite.com',
       replyTo: 'no-reply@ccellwebsite.com',
       subject: `Registration Confirmed - ${eventData.title}`,
       html: getStudentHtmlTemplate(studentData, eventData),
-    };
+    });
 
-    console.log(`[EmailService] Attempting to send confirmation email to student: ${studentData.email}`);
-    const studentInfo = await mailTransporter.sendMail(studentMailOptions);
-    console.log(`[EmailService] Student email sent successfully: ${studentInfo.messageId}`);
+    if (studentError) {
+      throw studentError;
+    }
+    console.log(`[EmailService] Student email sent successfully: ${studentDataRes ? studentDataRes.id : 'success'}`);
 
     // 2. Send registration alert email to admin (ccellwebsite@gmail.com)
+    // Admin notification disabled — re-enable by uncommenting the call below
+    /*
     const adminMailOptions = {
-      from: `"C³ Registration Portal" <${senderEmail}>`,
+      from: '"C³ Registration Portal" <onboarding@resend.dev>',
       to: adminEmail,
+      reply_to: 'no-reply@ccellwebsite.com',
       replyTo: 'no-reply@ccellwebsite.com',
       subject: `New Registration - ${eventData.title} - ${studentData.fullName}`,
       html: getAdminHtmlTemplate(studentData, eventData),
     };
 
     console.log(`[EmailService] Attempting to send registration alert email to admin: ${adminEmail}`);
-    const adminInfo = await mailTransporter.sendMail(adminMailOptions);
-    console.log(`[EmailService] Admin email sent successfully: ${adminInfo.messageId}`);
+    const { data: adminDataRes, error: adminError } = await resend.emails.send(adminMailOptions);
+    if (adminError) {
+      console.error('[EmailService] Admin notification failed:', adminError);
+    } else {
+      console.log(`[EmailService] Admin email sent successfully: ${adminDataRes ? adminDataRes.id : 'success'}`);
+    }
+    */
 
   } catch (error) {
     // If sending fails, we only log it, keeping the registration valid as per requirement.
