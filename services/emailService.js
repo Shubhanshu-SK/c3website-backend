@@ -2,7 +2,7 @@
  * emailService.js
  *
  * Handles sending registration confirmation emails to students and
- * notification emails to the admin.
+ * notification emails to the admin using Resend.
  */
 
 const { Resend } = require('resend');
@@ -16,7 +16,7 @@ const getResendClient = () => {
 
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.warn('[EmailService] RESEND_API_KEY environment variable is not defined.');
+    throw new Error('RESEND_API_KEY is not defined in environment variables.');
   }
 
   resendClient = new Resend(apiKey);
@@ -139,7 +139,8 @@ const getStudentHtmlTemplate = (student, event) => {
         <!-- Content -->
         <div class="content">
           <div class="welcome-msg">
-            Your registration is confirmed for: <strong>${event.title}</strong>
+            Hi <strong>${cleanText(student.fullName)}</strong>,<br><br>
+            Your registration has been successfully confirmed for the event: <strong>${event.title}</strong>!
           </div>
 
           <!-- Event Details Section -->
@@ -162,14 +163,17 @@ const getStudentHtmlTemplate = (student, event) => {
               <td class="info-value">${cleanText(event.venue)}</td>
             </tr>
             <tr>
-              <td class="info-label">Presenter/Host</td>
-              <td class="info-value">${displayPresenter}</td>
+              <td class="info-label">Organizer</td>
+              <td class="info-value"><strong>${displayPresenter}</strong></td>
             </tr>
             <tr>
               <td class="info-label">Domain</td>
               <td class="info-value">${displayDomain}</td>
             </tr>
-           
+            <tr>
+              <td class="info-label">Registration Link</td>
+              <td class="info-value">${displayLink}</td>
+            </tr>
           </table>
 
           <div class="divider"></div>
@@ -272,59 +276,65 @@ const getAdminHtmlTemplate = (student, event) => {
 
 /**
  * Send registration confirmation email to the student and notification to the admin.
- * Assumes sender is ccellwebsite@gmail.com.
+ * Uses Resend service with verified sender ccellrgpv.dpdns.org.
  *
  * @param {object} studentData - Full student form data
  * @param {object} eventData - MongoDB Event object
+ * @returns {Promise<{success: boolean, data?: any, error?: string}>}
  */
 const sendRegistrationConfirmationEmail = async (studentData, eventData) => {
-  const senderEmail = process.env.SMTP_USER || 'ccellwebsite@gmail.com';
   const adminEmail = process.env.ADMIN_EMAIL || 'ccellwebsite@gmail.com';
+  const fromEmail = process.env.SENDER_EMAIL || '<team@ccellrgpv.dpdns.org>';
+
 
   try {
     const resend = getResendClient();
 
     // 1. Send confirmation email to student
-    /*
-    console.log(`[EmailService] Attempting to send confirmation email to student: ${studentData.email}`);
+    // console.log(`[EmailService] Attempting to send confirmation email to student: ${studentData.email}`);
     const { data: studentDataRes, error: studentError } = await resend.emails.send({
-      from: '"C³ Club" <onboarding@resend.dev>',
+      from: fromEmail,
       to: studentData.email,
-      reply_to: 'no-reply@ccellwebsite.com',
-      replyTo: 'no-reply@ccellwebsite.com',
+      replyTo: adminEmail,
       subject: `Registration Confirmed - ${eventData.title}`,
       html: getStudentHtmlTemplate(studentData, eventData),
     });
 
     if (studentError) {
-      throw studentError;
+      console.error('[EmailService] Failed to send student email:', studentError);
+      return { success: false, error: studentError.message || JSON.stringify(studentError) };
     }
-    console.log(`[EmailService] Student email sent successfully: ${studentDataRes ? studentDataRes.id : 'success'}`);
-*/
-    // 2. Send registration alert email to admin (ccellwebsite@gmail.com)
-    // Admin notification disabled — re-enable by uncommenting the call below
-    
-    const adminMailOptions = {
-      from: '"C³ Registration Portal" <onboarding@resend.dev>',
-      to: adminEmail,
-      reply_to: 'no-reply@ccellwebsite.com',
-      replyTo: 'no-reply@ccellwebsite.com',
-      subject: `New Registration - ${eventData.title} - ${studentData.fullName}`,
-      html: getAdminHtmlTemplate(studentData, eventData),
+
+    // console.log(`[EmailService] Student email sent successfully: ${studentDataRes?.id || 'success'}`);
+
+    // 2. Send registration alert email to admin
+    // console.log(`[EmailService] Attempting to send registration alert email to admin: ${adminEmail}`);
+    // const { data: adminDataRes, error: adminError } = await resend.emails.send({
+    //   from: 'C-Cell RGPV <onboarding@resend.dev>',
+    //   to: adminEmail,
+    //   replyTo: 'team@ccellrgpv.dpdns.org',
+    //   subject: `New Registration - ${eventData.title} - ${studentData.fullName}`,
+    //   html: getAdminHtmlTemplate(studentData, eventData),
+    // });
+
+    // if (adminError) {
+    //   // Log admin error but do not fail overall operation if student confirmation succeeded
+    //   console.error('[EmailService] Failed to send admin alert email:', adminError);
+    // } else {
+    //   // console.log(`[EmailService] Admin email sent successfully: ${adminDataRes?.id || 'success'}`);
+    // }
+
+    return {
+      success: true,
+      // data: {
+      //   studentEmailId: studentDataRes?.id || null,
+      //   adminEmailId: adminDataRes?.id || null,
+      // }
     };
 
-    console.log(`[EmailService] Attempting to send registration alert email to admin: ${adminEmail}`);
-    const { data: adminDataRes, error: adminError } = await resend.emails.send(adminMailOptions);
-    if (adminError) {
-      console.error('[EmailService] Admin notification failed:', adminError);
-    } else {
-      console.log(`[EmailService] Admin email sent successfully: ${adminDataRes ? adminDataRes.id : 'success'}`);
-    }
-    
-
   } catch (error) {
-    // If sending fails, we only log it, keeping the registration valid as per requirement.
-    console.error('[EmailService] Failed to send registration emails:', error);
+    console.error('[EmailService] Detailed error during email sending:', error);
+    return { success: false, error: error.message || String(error) };
   }
 };
 
